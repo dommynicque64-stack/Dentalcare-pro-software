@@ -161,7 +161,7 @@ function LoginView(){
 }
 
 function AppShell(){
-  const { user, logout } = useAuth()
+  const { user, loading, logout } = useAuth()
   const [view,setView]=useState<View>('dashboard')
   const [mobileOpen,setMobileOpen]=useState(false)
   const [globalQuery,setGlobalQuery]=useState('')
@@ -175,7 +175,7 @@ function AppShell(){
     if(user && !rolePermissions[user.role].includes(view)){
       setView(rolePermissions[user.role][0])
     }
-  },[user])
+  },[user, view])
 
   // global search debounce
   useEffect(()=>{
@@ -186,6 +186,16 @@ function AppShell(){
     return ()=>clearTimeout(id)
   },[globalQuery])
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
+          <div className="w-5 h-5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+          Loading your clinic workspace...
+        </div>
+      </div>
+    )
+  }
   if(!user) return <LoginView/>
   const allowed = rolePermissions[user.role]
   return (

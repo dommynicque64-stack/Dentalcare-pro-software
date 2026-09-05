@@ -8,8 +8,7 @@ interface AuthCtx { user: User | null; loading: boolean; login: (email: string, 
 const AuthContext = createContext<AuthCtx>({ user: null, loading: true, login: async () => {}, logout: async () => {} });
 export const useAuth = () => useContext(AuthContext);
 
-async function loadProfile() {
-  const { data: { session } } = await supabase.auth.getSession();
+async function loadProfile(session: { access_token: string } | null) {
   if (!session) return null;
 
   const response = await fetch('/api/auth-me', {
@@ -29,35 +28,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let loadingProfile = false;
 
-    loadProfile()
-      .then(profile => { if (mounted) setUser(profile); })
-      .catch(() => { if (mounted) setUser(null); })
-      .finally(() => { if (mounted) setLoading(false); });
+    const applySession = async (session: { access_token: string } | null) => {
+      if (!mounted || loadingProfile) return;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Defer network work so the Supabase auth callback is not blocked by another auth call.
-      void (async () => {
-      if (!mounted) return;
-      if (!session) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
+      loadingProfile = true;
       try {
-        const response = await fetch('/api/auth-me', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!response.ok) throw new Error('No clinic role assigned');
-        const payload = await response.json();
-        if (mounted) setUser(payload.user as User);
+        const profile = await loadProfile(session);
+        if (mounted) setUser(profile);
       } catch {
-        await supabase.auth.signOut();
         if (mounted) setUser(null);
       } finally {
+        loadingProfile = false;
         if (mounted) setLoading(false);
       }
-      })();
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      void applySession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      void applySession(session);
     });
 
     return () => { mounted = false; subscription.unsubscribe(); };
@@ -68,7 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw new Error(error.message);
 
     try {
-      const profile = await loadProfile();
+      const { data: { session } } = await supabase.auth.getSession();
+      const profile = await loadProfile(session);
       setUser(profile);
     } catch (error) {
       await supabase.auth.signOut();

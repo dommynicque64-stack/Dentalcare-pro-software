@@ -5,5 +5,4 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   envPrefix: 'VITE_',
-  base: process.env.VITE_BASE_URL || '/',
 })
